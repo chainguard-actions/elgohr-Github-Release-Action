@@ -1,0 +1,38 @@
+name: Test basic release with custom tag
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install mock gh CLI
+        run: |
+          mkdir -p /tmp/mock-bin
+          cat > /tmp/mock-bin/gh << 'EOF'
+          #!/usr/bin/env bash
+          echo "gh $*" >> /tmp/gh-calls.log
+          exit 0
+          EOF
+          chmod +x /tmp/mock-bin/gh
+          echo "/tmp/mock-bin" >> $GITHUB_PATH
+
+      - id: action
+        uses: .
+        env:
+          PATH: /tmp/mock-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        with:
+          title: "My Release"
+          tag: "v1.0.0"
+
+      - name: Assert gh release create was called with correct args
+        run: |
+          echo "=== gh calls log ==="
+          cat /tmp/gh-calls.log || echo "(no log file)"
+          if ! grep -q "gh release create v1.0.0 -t My Release --generate-notes" /tmp/gh-calls.log; then
+            echo "FAIL: expected 'gh release create v1.0.0 -t My Release --generate-notes' in gh calls"
+            cat /tmp/gh-calls.log
+            exit 1
+          fi
+          echo "PASS"

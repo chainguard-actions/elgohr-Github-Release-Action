@@ -1,0 +1,47 @@
+name: Test workdir changes directory before creating release
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create workdir and install mock gh CLI
+        run: |
+          mkdir -p /tmp/mock-bin
+          mkdir -p /tmp/my-workdir
+          cat > /tmp/mock-bin/gh << 'EOF'
+          #!/usr/bin/env bash
+          echo "gh $*" >> /tmp/gh-calls.log
+          # Record the current working directory when gh is called
+          echo "cwd: $(pwd)" >> /tmp/gh-calls.log
+          exit 0
+          EOF
+          chmod +x /tmp/mock-bin/gh
+          echo "/tmp/mock-bin" >> $GITHUB_PATH
+
+      - id: action
+        uses: .
+        env:
+          PATH: /tmp/mock-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        with:
+          title: "Workdir Release"
+          tag: "v2.0.0"
+          workdir: "/tmp/my-workdir"
+
+      - name: Assert gh release create was called with correct args
+        run: |
+          echo "=== gh calls log ==="
+          cat /tmp/gh-calls.log || echo "(no log file)"
+          if ! grep -q "gh release create v2.0.0 -t Workdir Release --generate-notes" /tmp/gh-calls.log; then
+            echo "FAIL: expected 'gh release create v2.0.0 -t Workdir Release --generate-notes' in gh calls"
+            cat /tmp/gh-calls.log
+            exit 1
+          fi
+          if ! grep -q "cwd: /tmp/my-workdir" /tmp/gh-calls.log; then
+            echo "FAIL: expected gh to be called from /tmp/my-workdir"
+            cat /tmp/gh-calls.log
+            exit 1
+          fi
+          echo "PASS"
