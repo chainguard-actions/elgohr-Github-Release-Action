@@ -1,0 +1,53 @@
+name: Test release with predefined tag
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up mock gh binary
+        run: |
+          mkdir -p /tmp/mock-bin
+          cat > /tmp/mock-bin/gh << 'EOF'
+          #!/usr/bin/env bash
+          echo "$@" > /tmp/gh-args
+          exit 0
+          EOF
+          chmod +x /tmp/mock-bin/gh
+
+      - name: Add mock to PATH
+        run: echo "/tmp/mock-bin" >> $GITHUB_PATH
+
+      - id: action
+        uses: .
+        with:
+          title: "My Tagged Release"
+          tag: "v1.2.3"
+        env:
+          GH_TOKEN: fake-token-for-testing
+
+      - name: Assert gh was called with the predefined tag
+        run: |
+          if [ ! -f /tmp/gh-args ]; then
+            echo "FAIL: gh was never called (mock args file not found)"
+            exit 1
+          fi
+          ARGS=$(cat /tmp/gh-args)
+          echo "gh called with: $ARGS"
+          if echo "$ARGS" | grep -q "release create v1.2.3"; then
+            echo "PASS: predefined tag v1.2.3 was used"
+          else
+            echo "FAIL: expected 'release create v1.2.3' in gh arguments, got: $ARGS"
+            exit 1
+          fi
+          if echo "$ARGS" | grep -q "\-t My Tagged Release"; then
+            echo "PASS: title was passed correctly"
+          else
+            echo "FAIL: expected title 'My Tagged Release' in gh arguments"
+            exit 1
+          fi

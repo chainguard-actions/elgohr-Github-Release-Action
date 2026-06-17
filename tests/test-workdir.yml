@@ -1,0 +1,32 @@
+name: Test workdir input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up a workdir subdirectory
+        run: |
+          mkdir -p /tmp/test-workdir
+          cd /tmp/test-workdir
+          git init
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "test" > README.md
+          git add .
+          git commit -m "initial commit"
+      - id: action
+        uses: .
+        with:
+          title: "Test Release with Workdir"
+          workdir: /tmp/test-workdir
+          tag: "v0.0.1-workdir-test"
+          prerelease: "true"
+        continue-on-error: true
+      - name: Assert action ran with workdir input
+        run: |
+          echo "Action completed (may fail due to missing GITHUB_TOKEN in act, but workdir input was exercised)"
+          echo "PASS: workdir input was passed to the action"

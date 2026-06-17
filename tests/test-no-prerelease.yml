@@ -1,0 +1,53 @@
+name: Test no prerelease flag when prerelease is false
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up mock gh binary
+        run: |
+          mkdir -p /tmp/mock-bin
+          cat > /tmp/mock-bin/gh << 'EOF'
+          #!/usr/bin/env bash
+          echo "$@" > /tmp/gh-args
+          exit 0
+          EOF
+          chmod +x /tmp/mock-bin/gh
+
+      - name: Add mock to PATH
+        run: echo "/tmp/mock-bin" >> $GITHUB_PATH
+
+      - id: action
+        uses: .
+        with:
+          title: "My Stable Release"
+          tag: "v1.0.0"
+          prerelease: "false"
+        env:
+          GH_TOKEN: fake-token-for-testing
+
+      - name: Assert gh was NOT called with --prerelease flag
+        run: |
+          if [ ! -f /tmp/gh-args ]; then
+            echo "FAIL: gh was never called (mock args file not found)"
+            exit 1
+          fi
+          ARGS=$(cat /tmp/gh-args)
+          echo "gh called with: $ARGS"
+          if echo "$ARGS" | grep -q "\-\-prerelease"; then
+            echo "FAIL: --prerelease flag should NOT be present when prerelease=false, got: $ARGS"
+            exit 1
+          fi
+          echo "PASS: --prerelease flag was correctly omitted"
+          if echo "$ARGS" | grep -q "release create v1.0.0"; then
+            echo "PASS: tag v1.0.0 was used"
+          else
+            echo "FAIL: expected 'release create v1.0.0' in gh arguments"
+            exit 1
+          fi
