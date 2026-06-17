@@ -1,15 +1,76 @@
-# elgohr/Github-Release-Action
+# Github-Release-Action
 
-Publish Github releases from an action
+[![Actions Status](https://github.com/elgohr/Github-Release-Action/workflows/Release/badge.svg)](https://github.com/elgohr/Github-Release-Action/actions)
 
-Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/elgohr/Github-Release-Action](https://github.com/elgohr/Github-Release-Action).
+Creates a plain Github release, without attaching assets or source code.
 
-## Versions
+## Usage
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| release-20241102143619 | [`release-20241102143619`](https://github.com/chainguard-actions/elgohr-Github-Release-Action/tree/release-20241102143619) | [`ed17bd4`](https://github.com/elgohr/Github-Release-Action/commit/ed17bd40894fb095b2e04c56c27678482e2447d0) |
-| release-20241111151247 | [`release-20241111151247`](https://github.com/chainguard-actions/elgohr-Github-Release-Action/tree/release-20241111151247) | [`c5ea990`](https://github.com/elgohr/Github-Release-Action/commit/c5ea99036abb741a89f8bf1f2cd7fba845e3313a) |
+```yaml
+name: Publish Release
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Create a Release
+      uses: elgohr/Github-Release-Action@v5
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        title: MyReleaseMessage
+        tag: MyTag
+```
+
+## Mandatory Arguments
+
+### title
+`title` is a message which should appear in the release. May contain spaces.
+
+## Optional Arguments
+
+### workdir
+`workdir` can be used to specify a directory that contains the repository to be published. 
+
+### tag
+`tag` can be used to set the tag of the release
+
+## Notes
+
+`${{ secrets.GITHUB_TOKEN }}` can be used for publishing, if you configure the correct permissions.
+
+This can be done by giving the Github token _all_ permissions (referred to as "Read and write permission") with the setting below available in Settings > Actions > General  
+![Screenshot of permission setting](permissions.png)
+OR alternatively it can be achieved via adding
+
+```yaml
+permissions:
+  packages: write
+  contents: write
+```
+
+to the concrete job creating the release. For more details see the [documentation on token permissions.](https://docs.github.com/en/actions/security-guides/automatic-token-authentication#modifying-the-permissions-for-the-github_token)
+
+### Use with GitHub Enterprise
+
+To publish your release to self-hosted GitHub Enterprise, include `GH_ENTERPRISE_TOKEN` and `GH_HOST` as environment variables.  
+For example:
+
+```yaml
+      - name: Create Release
+        if: ${{ github.event.inputs.create_release }}
+        uses: elgohr/Github-Release-Action@v5
+        env:
+          GH_ENTERPRISE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_HOST: yourgithub.company.com
+        with:
+          title: "New release"
+          tag: "v1.0.1"
+```
 
 ## Privacy
 

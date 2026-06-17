@@ -1,0 +1,53 @@
+name: Test basic usage with title
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create mock gh binary
+        run: |
+          mkdir -p "$HOME/bin"
+          cat > "$HOME/bin/gh" << 'EOF'
+          #!/usr/bin/env bash
+          echo "gh $@" > /tmp/gh_args.txt
+          exit 0
+          EOF
+          chmod +x "$HOME/bin/gh"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          title: "My Test Release"
+        env:
+          PATH: /root/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+      - name: Assert gh was called with release create
+        run: |
+          echo "gh args: $(cat /tmp/gh_args.txt)"
+          if ! grep -q "release create" /tmp/gh_args.txt; then
+            echo "FAIL: expected 'release create' in gh args"
+            exit 1
+          fi
+          echo "PASS: gh release create was called"
+
+      - name: Assert title was passed
+        run: |
+          echo "gh args: $(cat /tmp/gh_args.txt)"
+          if ! grep -q "My Test Release" /tmp/gh_args.txt; then
+            echo "FAIL: expected title 'My Test Release' in gh args"
+            exit 1
+          fi
+          echo "PASS: title was passed correctly"
+
+      - name: Assert auto-generated tag format
+        run: |
+          echo "gh args: $(cat /tmp/gh_args.txt)"
+          if ! grep -qE "release-[0-9]{14}" /tmp/gh_args.txt; then
+            echo "FAIL: expected auto-generated tag in format release-YYYYMMDDHHMMSS"
+            exit 1
+          fi
+          echo "PASS: auto-generated tag has correct format"

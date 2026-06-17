@@ -1,0 +1,52 @@
+name: Test explicit tag usage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create mock gh binary
+        run: |
+          mkdir -p "$HOME/bin"
+          cat > "$HOME/bin/gh" << 'EOF'
+          #!/usr/bin/env bash
+          echo "gh $@" > /tmp/gh_args.txt
+          exit 0
+          EOF
+          chmod +x "$HOME/bin/gh"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          title: "Versioned Release"
+          tag: "v1.2.3"
+
+      - name: Assert gh was called with release create
+        run: |
+          echo "gh args: $(cat /tmp/gh_args.txt)"
+          if ! grep -q "release create" /tmp/gh_args.txt; then
+            echo "FAIL: expected 'release create' in gh args"
+            exit 1
+          fi
+          echo "PASS: gh release create was called"
+
+      - name: Assert explicit tag was used
+        run: |
+          echo "gh args: $(cat /tmp/gh_args.txt)"
+          if ! grep -q "v1.2.3" /tmp/gh_args.txt; then
+            echo "FAIL: expected explicit tag 'v1.2.3' in gh args"
+            exit 1
+          fi
+          echo "PASS: explicit tag was used"
+
+      - name: Assert auto-generated tag was NOT used
+        run: |
+          echo "gh args: $(cat /tmp/gh_args.txt)"
+          if grep -qE "release-[0-9]{14}" /tmp/gh_args.txt; then
+            echo "FAIL: auto-generated tag should not be used when explicit tag is provided"
+            exit 1
+          fi
+          echo "PASS: auto-generated tag was not used"
