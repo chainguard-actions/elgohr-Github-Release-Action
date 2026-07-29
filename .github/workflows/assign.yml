@@ -1,0 +1,16 @@
+name: Issue assignment
+on:
+  issues:
+    types: [ opened ]
+permissions: {}
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: pozil/auto-assign-issue@7bf9d82c77d45976224660b873fc83e60576c5aa # v2
+        if: github.actor != 'dependabot[bot]'
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          assignees: elgohr

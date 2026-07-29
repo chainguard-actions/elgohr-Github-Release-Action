@@ -1,0 +1,45 @@
+name: Test auto-generated tag when no tag provided
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install mock gh binary
+        run: |
+          mkdir -p /tmp/mock-bin
+          cat > /tmp/mock-bin/gh << 'EOF'
+          #!/bin/sh
+          echo "gh $*" >> /tmp/gh-calls.log
+          exit 0
+          EOF
+          chmod +x /tmp/mock-bin/gh
+          echo "/tmp/mock-bin" >> $GITHUB_PATH
+
+      - id: action
+        uses: .
+        env:
+          PATH: /tmp/mock-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        with:
+          title: "Auto Tag Release"
+
+      - name: Assert gh release create was called with auto-generated tag
+        run: |
+          echo "gh calls log:"
+          cat /tmp/gh-calls.log || echo "(empty)"
+          # The auto-generated tag should match pattern release-YYYYMMDDHHMMSS
+          if ! grep -qE "release create release-[0-9]{14}" /tmp/gh-calls.log; then
+            echo "FAIL: expected auto-generated tag matching 'release-YYYYMMDDHHMMSS' pattern"
+            exit 1
+          fi
+          if ! grep -q "\-t Auto Tag Release" /tmp/gh-calls.log; then
+            echo "FAIL: expected '-t Auto Tag Release' in calls"
+            exit 1
+          fi
+          if ! grep -q "\-\-generate-notes" /tmp/gh-calls.log; then
+            echo "FAIL: expected '--generate-notes' in calls"
+            exit 1
+          fi
+          echo "PASS"

@@ -1,0 +1,53 @@
+name: Test workdir input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create workdir subdirectory
+        run: |
+          mkdir -p /tmp/test-workdir
+
+      - name: Install mock gh binary
+        run: |
+          mkdir -p /tmp/mock-bin
+          cat > /tmp/mock-bin/gh << 'EOF'
+          #!/bin/sh
+          echo "gh $*" >> /tmp/gh-calls.log
+          pwd >> /tmp/gh-pwd.log
+          exit 0
+          EOF
+          chmod +x /tmp/mock-bin/gh
+          echo "/tmp/mock-bin" >> $GITHUB_PATH
+
+      - id: action
+        uses: .
+        env:
+          PATH: /tmp/mock-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        with:
+          title: "Workdir Test Release"
+          tag: "v2.0.0"
+          workdir: /tmp/test-workdir
+
+      - name: Assert gh release create was called
+        run: |
+          echo "gh calls log:"
+          cat /tmp/gh-calls.log || echo "(empty)"
+          if ! grep -q "release create v2.0.0" /tmp/gh-calls.log; then
+            echo "FAIL: expected 'gh release create v2.0.0' in calls"
+            exit 1
+          fi
+          echo "PASS: gh release create called"
+
+      - name: Assert gh was called from the workdir
+        run: |
+          echo "gh pwd log:"
+          cat /tmp/gh-pwd.log || echo "(empty)"
+          if ! grep -q "/tmp/test-workdir" /tmp/gh-pwd.log; then
+            echo "FAIL: expected gh to be called from /tmp/test-workdir"
+            exit 1
+          fi
+          echo "PASS: gh called from correct workdir"
