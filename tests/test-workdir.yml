@@ -1,4 +1,4 @@
-name: Test workdir input
+name: Test release with custom workdir
 on:
   workflow_dispatch:
 jobs:
@@ -7,44 +7,48 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create mock gh binary that records working directory
+      - name: Install fake gh CLI
         run: |
-          mkdir -p "$HOME/bin"
-          cat > "$HOME/bin/gh" << 'EOF'
-          #!/usr/bin/env bash
-          echo "gh $@" > /tmp/gh_args.txt
-          pwd > /tmp/gh_workdir.txt
+          mkdir -p /tmp/fake-bin
+          cat > /tmp/fake-bin/gh << 'EOF'
+          #!/bin/sh
+          echo "gh $*" > /tmp/gh-called-args
+          # Record the working directory when gh was called
+          pwd > /tmp/gh-called-pwd
           exit 0
           EOF
-          chmod +x "$HOME/bin/gh"
-          echo "$HOME/bin" >> "$GITHUB_PATH"
+          chmod +x /tmp/fake-bin/gh
 
-      - name: Create a subdirectory to use as workdir
-        run: |
-          mkdir -p /tmp/myrepo
+      - name: Create workdir
+        run: mkdir -p /tmp/test-workdir
 
       - id: action
         uses: .
+        env:
+          PATH: /tmp/fake-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         with:
           title: "Workdir Release"
-          tag: "v0.1.0"
-          workdir: "/tmp/myrepo"
+          tag: "v2.0.0"
+          workdir: "/tmp/test-workdir"
 
-      - name: Assert gh was called with release create
+      - name: Assert gh was called with correct tag and title
         run: |
-          echo "gh args: $(cat /tmp/gh_args.txt)"
-          if ! grep -q "release create" /tmp/gh_args.txt; then
-            echo "FAIL: expected 'release create' in gh args"
+          echo "gh args: $(cat /tmp/gh-called-args)"
+          ARGS="$(cat /tmp/gh-called-args)"
+          if echo "$ARGS" | grep -q "release create v2.0.0"; then
+            echo "PASS: gh release create called with correct tag"
+          else
+            echo "FAIL: expected 'release create v2.0.0' in args, got: $ARGS"
             exit 1
           fi
-          echo "PASS: gh release create was called"
 
-      - name: Assert gh was called from the correct workdir
+      - name: Assert gh was called from the workdir
         run: |
-          ACTUAL_WORKDIR=$(cat /tmp/gh_workdir.txt)
-          echo "actual workdir: $ACTUAL_WORKDIR"
-          if [ "$ACTUAL_WORKDIR" != "/tmp/myrepo" ]; then
-            echo "FAIL: expected workdir '/tmp/myrepo', got '$ACTUAL_WORKDIR'"
+          echo "gh pwd: $(cat /tmp/gh-called-pwd)"
+          PWD_USED="$(cat /tmp/gh-called-pwd)"
+          if [ "$PWD_USED" = "/tmp/test-workdir" ]; then
+            echo "PASS: gh was called from the correct workdir"
+          else
+            echo "FAIL: expected gh to be called from '/tmp/test-workdir', got: $PWD_USED"
             exit 1
           fi
-          echo "PASS: gh was called from the correct workdir"

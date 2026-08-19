@@ -1,0 +1,43 @@
+name: Test release with auto-generated tag
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake gh CLI
+        run: |
+          mkdir -p /tmp/fake-bin
+          cat > /tmp/fake-bin/gh << 'EOF'
+          #!/bin/sh
+          echo "gh $*" > /tmp/gh-called-args
+          exit 0
+          EOF
+          chmod +x /tmp/fake-bin/gh
+
+      - id: action
+        uses: .
+        env:
+          PATH: /tmp/fake-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        with:
+          title: "Auto Tag Release"
+
+      - name: Assert gh was called with auto-generated tag
+        run: |
+          echo "gh args: $(cat /tmp/gh-called-args)"
+          ARGS="$(cat /tmp/gh-called-args)"
+          # The auto-generated tag should match pattern: release-YYYYMMDDHHMMSS
+          if echo "$ARGS" | grep -qE "release create release-[0-9]{14}"; then
+            echo "PASS: gh release create called with auto-generated tag matching pattern"
+          else
+            echo "FAIL: expected auto-generated tag matching 'release-YYYYMMDDHHMMSS', got: $ARGS"
+            exit 1
+          fi
+          if echo "$ARGS" | grep -q "\-\-generate-notes"; then
+            echo "PASS: --generate-notes flag present"
+          else
+            echo "FAIL: expected '--generate-notes' in args, got: $ARGS"
+            exit 1
+          fi

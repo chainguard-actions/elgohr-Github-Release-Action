@@ -1,0 +1,49 @@
+name: Test basic release with predefined tag
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake gh CLI
+        run: |
+          mkdir -p /tmp/fake-bin
+          cat > /tmp/fake-bin/gh << 'EOF'
+          #!/bin/sh
+          echo "gh $*" > /tmp/gh-called-args
+          exit 0
+          EOF
+          chmod +x /tmp/fake-bin/gh
+
+      - id: action
+        uses: .
+        env:
+          PATH: /tmp/fake-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        with:
+          title: "My Test Release"
+          tag: "v1.0.0"
+
+      - name: Assert gh was called with correct arguments
+        run: |
+          echo "gh args: $(cat /tmp/gh-called-args)"
+          ARGS="$(cat /tmp/gh-called-args)"
+          if echo "$ARGS" | grep -q "release create v1.0.0"; then
+            echo "PASS: gh release create called with correct tag"
+          else
+            echo "FAIL: expected 'release create v1.0.0' in args, got: $ARGS"
+            exit 1
+          fi
+          if echo "$ARGS" | grep -q "\-t My Test Release"; then
+            echo "PASS: title argument present"
+          else
+            echo "FAIL: expected '-t My Test Release' in args, got: $ARGS"
+            exit 1
+          fi
+          if echo "$ARGS" | grep -q "\-\-generate-notes"; then
+            echo "PASS: --generate-notes flag present"
+          else
+            echo "FAIL: expected '--generate-notes' in args, got: $ARGS"
+            exit 1
+          fi
