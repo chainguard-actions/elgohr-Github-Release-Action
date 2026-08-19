@@ -9,12 +9,11 @@ main() {
         INPUT_TAG="release-$(date +%Y%m%d%H%M%S)"
     fi
 
-    OPTIONS="--generate-notes"
     if usesBoolean "${INPUT_PRERELEASE}"; then
-        OPTIONS="${OPTIONS} --prerelease"
+        gh release create "$INPUT_TAG" -t "${INPUT_TITLE}" --generate-notes --prerelease
+    else
+        gh release create "$INPUT_TAG" -t "${INPUT_TITLE}" --generate-notes
     fi
-
-    gh release create "$INPUT_TAG" -t "${INPUT_TITLE}" $OPTIONS
 }
 
 uses() {

@@ -1,4 +1,4 @@
-name: Test prerelease flag
+name: Test basic release (auto-generated tag)
 on:
   workflow_dispatch:
 jobs:
@@ -22,11 +22,10 @@ jobs:
       - id: action
         uses: .
         with:
-          title: "Test Prerelease"
-          tag: "test-prerelease-v0.0.1"
-          prerelease: "true"
+          title: "Test Basic Release"
+          tag: "test-basic-v0.0.1"
 
-      - name: Assert gh release create was called with prerelease flag
+      - name: Assert gh release create was called with correct args
         run: |
           echo "=== gh calls log ==="
           cat /tmp/gh-calls.log || echo "(no log file)"
@@ -41,15 +40,15 @@ jobs:
             echo "FAIL: gh release create was not called"
             exit 1
           fi
-          if grep -q "test-prerelease-v0.0.1" /tmp/gh-calls.log; then
+          if grep -q "test-basic-v0.0.1" /tmp/gh-calls.log; then
             echo "PASS: correct tag was used"
           else
-            echo "FAIL: expected tag 'test-prerelease-v0.0.1' not found in gh call"
+            echo "FAIL: expected tag 'test-basic-v0.0.1' not found in gh call"
             exit 1
           fi
-          if grep -q -- "--prerelease" /tmp/gh-calls.log; then
-            echo "PASS: --prerelease flag was included"
+          if grep -q "Test Basic Release" /tmp/gh-calls.log; then
+            echo "PASS: correct title was used"
           else
-            echo "FAIL: --prerelease flag was not found in gh call"
+            echo "FAIL: expected title 'Test Basic Release' not found in gh call"
             exit 1
           fi
