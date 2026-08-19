@@ -1,4 +1,4 @@
-name: Test prerelease flag
+name: Test auto-generated tag when no tag provided
 on:
   workflow_dispatch:
 jobs:
@@ -18,26 +18,20 @@ jobs:
           chmod +x /tmp/mock-bin/gh
           echo "/tmp/mock-bin" >> $GITHUB_PATH
 
-      - name: Run action with prerelease=true
+      - name: Run action without a tag (auto-generate)
         uses: .
         env:
           PATH: /tmp/mock-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         with:
-          title: "Beta Release"
-          tag: "v2.0.0-beta"
-          prerelease: "true"
+          title: "Auto Tag Release"
 
-      - name: Assert gh release create was called with --prerelease
+      - name: Assert gh release create was called with auto-generated tag
         run: |
           echo "gh calls log:"
           cat /tmp/gh-calls.log || echo "(empty)"
-          if ! grep -q "\-\-prerelease" /tmp/gh-calls.log; then
-            echo "FAIL: expected '--prerelease' flag in gh call"
-            cat /tmp/gh-calls.log
-            exit 1
-          fi
-          if ! grep -q "release create v2.0.0-beta -t Beta Release --generate-notes" /tmp/gh-calls.log; then
-            echo "FAIL: expected 'gh release create v2.0.0-beta -t Beta Release --generate-notes' in calls"
+          # The auto-generated tag should match the pattern release-YYYYMMDDHHMMSS
+          if ! grep -qE "release create release-[0-9]{14} -t Auto Tag Release --generate-notes" /tmp/gh-calls.log; then
+            echo "FAIL: expected auto-generated tag matching 'release-YYYYMMDDHHMMSS' pattern"
             cat /tmp/gh-calls.log
             exit 1
           fi

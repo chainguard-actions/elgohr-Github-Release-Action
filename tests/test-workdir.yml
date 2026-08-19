@@ -1,32 +1,44 @@
-name: Test workdir input
+name: Test release with workdir input
 on:
   workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Set up a workdir subdirectory
+
+      - name: Create a subdirectory to use as workdir
         run: |
           mkdir -p /tmp/test-workdir
-          cd /tmp/test-workdir
-          git init
-          git config user.email "test@example.com"
-          git config user.name "Test User"
-          echo "test" > README.md
-          git add .
-          git commit -m "initial commit"
-      - id: action
-        uses: .
-        with:
-          title: "Test Release with Workdir"
-          workdir: /tmp/test-workdir
-          tag: "v0.0.1-workdir-test"
-          prerelease: "true"
-        continue-on-error: true
-      - name: Assert action ran with workdir input
+          echo "workdir test repo" > /tmp/test-workdir/README.md
+
+      - name: Install mock gh CLI
         run: |
-          echo "Action completed (may fail due to missing GITHUB_TOKEN in act, but workdir input was exercised)"
-          echo "PASS: workdir input was passed to the action"
+          mkdir -p /tmp/mock-bin
+          cat > /tmp/mock-bin/gh << 'EOF'
+          #!/bin/sh
+          echo "gh $*" >> /tmp/gh-calls.log
+          exit 0
+          EOF
+          chmod +x /tmp/mock-bin/gh
+          echo "/tmp/mock-bin" >> $GITHUB_PATH
+
+      - name: Run action with workdir input
+        uses: .
+        env:
+          PATH: /tmp/mock-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        with:
+          title: "Workdir Release"
+          tag: "v3.0.0"
+          workdir: "/tmp/test-workdir"
+
+      - name: Assert gh release create was called correctly
+        run: |
+          echo "gh calls log:"
+          cat /tmp/gh-calls.log || echo "(empty)"
+          if ! grep -q "release create v3.0.0 -t Workdir Release --generate-notes" /tmp/gh-calls.log; then
+            echo "FAIL: expected 'gh release create v3.0.0 -t Workdir Release --generate-notes' in calls"
+            cat /tmp/gh-calls.log
+            exit 1
+          fi
+          echo "PASS"
