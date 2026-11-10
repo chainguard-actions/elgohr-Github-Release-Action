@@ -4,7 +4,7 @@
 
 > This file was generated automatically by the hardening agent.
 
-**Policy SHA:** `d636be7e43ef829af6e853da6b3c7566db9f72fe`
+**Policy SHA:** `374911c4be584df24e6da57af2d990570ef0f859`
 
 **Test Policy SHA:** `843adf9e4b8f85d0c08b27b9d0b09dd094b54702`
 
@@ -14,40 +14,9 @@ Action **elgohr--Github-Release-Action/release-20241111151247** was hardened aut
 
 ## Findings Fixed
 
-### unpinned-uses (severity: high)
-
-Multiple workflow files reference actions by mutable tag or branch instead of a full 40-character commit SHA, making them vulnerable to supply-chain attacks if the tag is moved.
-
-- .github/workflows/assign.yml: `uses: pozil/auto-assign-issue@v2` (tag)
-- .github/workflows/release.yml: `uses: actions/checkout@v4` (tag, appears 3 times)
-- .github/workflows/release.yml: `uses: elgohr/Github-Release-Action@main` (branch, appears 2 times)
-
-All of these should be pinned to a full SHA digest, e.g. `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4`.
-
-Locations:
-
-- `.github/workflows/assign.yml:8`
-- `.github/workflows/release.yml:12`
-- `.github/workflows/release.yml:22`
-- `.github/workflows/release.yml:27`
-- `.github/workflows/release.yml:32`
-- `.github/workflows/release.yml:42`
-
-### missing-permissions (severity: medium)
-
-Two workflow files are missing `permissions:` blocks on one or more jobs:
-
-- `.github/workflows/assign.yml`: No top-level `permissions:` key and the only job (`auto-assign`) has no job-level `permissions:` key. This defaults to the repository's default token permissions, which may be overly broad.
-- `.github/workflows/release.yml`: The `release` job has no `permissions:` key (the other two jobs do have job-level permissions). The `release` job runs `git push` and should declare minimal required permissions explicitly.
-
-Locations:
-
-- `.github/workflows/assign.yml:1`
-- `.github/workflows/release.yml:36`
-
 ### script-injection (severity: high)
 
-Sub-rule (b) violation: In `entrypoint.sh` (called from `action.yml`), the variables `$INPUT_TAG` and `$OPTIONS` are expanded **unquoted** in the shell command `gh release create $INPUT_TAG -t "${INPUT_TITLE}" $OPTIONS`. 
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. Sub-rule (b) violation: In `entrypoint.sh` (called from `action.yml`), the variables `$INPUT_TAG` and `$OPTIONS` are expanded **unquoted** in the shell command `gh release create $INPUT_TAG -t "${INPUT_TITLE}" $OPTIONS`. 
 
 - `INPUT_TAG` is set from `inputs.tag` (workflow-controllable) via the `env:` block in `action.yml`. An attacker-controlled value containing shell metacharacters (`;`, `|`, `$(...)`, etc.) will be word-split and interpreted by the shell.
 - `$OPTIONS` is built from `INPUT_PRERELEASE` (also workflow-controllable) and is likewise unquoted.
@@ -58,15 +27,79 @@ Locations:
 
 - `entrypoint.sh:16`
 
+### prior-fix (severity: high)
+
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. The previous harden changed action.yml without recording a finding for it, and this analysis reported nothing there. Re-apply its security changes unless the code no longer needs them. The previous patch:
+```diff
+diff --git a/action.yml b/action.yml
+index 739a26d..20c5c63 100644
+--- a/action.yml
++++ b/action.yml
+@@ -4,7 +4,6 @@ branding:
+   icon: "git-branch"
+   color: "gray-dark"
+ description: "Publish Github releases from an action"
+-
+ inputs:
+   title:
+     description: "The name of the release to publish"
+@@ -18,10 +17,26 @@ inputs:
+   prerelease:
+     description: "Publishes a prerelease"
+     required: false
+-
+ runs:
+   using: 'composite'
+-  steps:      
++  steps:
+     - run: $GITHUB_ACTION_PATH/entrypoint.sh
+       shell: bash
+       env:
+
+```
+
+Locations:
+
+- `action.yml`
+
+### prior-fix (severity: high)
+
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. The previous harden changed entrypoint.sh without recording a finding for it, and this analysis reported nothing there. Re-apply its security changes unless the code no longer needs them. The previous patch:
+```diff
+diff --git a/entrypoint.sh b/entrypoint.sh
+index 9e7ad24..39ac601 100755
+--- a/entrypoint.sh
++++ b/entrypoint.sh
+@@ -9,12 +9,11 @@ main() {
+         INPUT_TAG="release-$(date +%Y%m%d%H%M%S)"
+     fi
+ 
+-    OPTIONS="--generate-notes"
+     if usesBoolean "${INPUT_PRERELEASE}"; then
+-        OPTIONS="${OPTIONS} --prerelease"
++        gh release create "$INPUT_TAG" -t "${INPUT_TITLE}" --generate-notes --prerelease
++    else
++        gh release create "$INPUT_TAG" -t "${INPUT_TITLE}" --generate-notes
+     fi
+-
+-    gh release create $INPUT_TAG -t "${INPUT_TITLE}" $OPTIONS
+ }
+ 
+ uses() {
+
+```
+
+Locations:
+
+- `entrypoint.sh`
+
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** unpinned-uses, missing-permissions, script-injection
+**Fixes applied:** script-injection, prior-fix
 
 **Notes:**
 
-1. unpinned-uses: Pinned pozil/auto-assign-issue@v2 → @7bf9d82c77d45976224660b873fc83e60576c5aa, actions/checkout@v4 → @11d5960a326750d5838078e36cf38b85af677262, and elgohr/Github-Release-Action@main → @c552071f9147ab82a7ddbc90651a8d81d24e2085 in both workflow files. Original tags/branches preserved as inline comments.
-2. missing-permissions: Added top-level `permissions: {}` and job-level `permissions: { issues: write }` to assign.yml. Added `permissions: { contents: write }` to the release job in release.yml (needed for git push/tag operations).
-3. script-injection: Fixed entrypoint.sh by double-quoting `$INPUT_TAG` in the `gh release create` call and eliminating the unquoted `$OPTIONS` variable by restructuring the conditional logic — the prerelease flag is now passed directly as a literal argument based on the boolean check, removing any unquoted variable expansion.
+entrypoint.sh: the tag is now quoted as "$INPUT_TAG". The unquoted $OPTIONS string is gone; the script now has two separate gh release create calls, one with --prerelease and one without. This matches the previous harden's patch. action.yml: I re-applied the previous whitespace cleanup and also quoted the script path ("$GITHUB_ACTION_PATH/entrypoint.sh"). The inputs are still passed in through env:. Nothing was run or tested in this pass.
 
